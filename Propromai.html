@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเช็คชื่ออัจฉริยะ (HTML Only)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg: #f3f4f6;
+        }
+
+        body {
+            font-family: 'Kanit', sans-serif;
+            background-color: var(--bg);
+            background-image: radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+                              radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #1f2937;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            max-width: 500px;
+            width: 100%;
+            padding: 2rem;
+            border-radius: 24px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        h1 { text-align: center; font-weight: 600; margin-bottom: 0.5rem; color: #111827; }
+        p.desc { text-align: center; color: #6b7280; font-size: 0.9rem; margin-bottom: 2rem; }
+
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 400; }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+        }
+
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover:not(:disabled) { background: #4338ca; }
+
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 12px;
+            margin-top: 1.5rem;
+            border-left: 5px solid;
+            display: none; /* ซ่อน alert เริ่มต้น */
+        }
+
+        .alert-success { background: #ecfdf5; border-color: var(--success); color: #065f46; }
+        .alert-danger { background: #fef2f2; border-color: var(--danger); color: #991b1b; }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 1rem;
+        }
+
+        .info-card {
+            background: #f9fafb;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .info-label { color: #6b7280; display: block; }
+        .info-value { font-weight: 600; color: #111827; }
+
+        #status-text { font-size: 0.8rem; text-align: center; margin-top: 10px; display: block; color: #6b7280; }
+
+        .btn-map {
+            display: block;
+            text-align: center;
+            margin-top: 1rem;
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>ลงชื่อเข้าใช้</h1>
+    <p class="desc">ระบบจะบันทึกเวลาและพิกัดปัจจุบันของคุณ</p>
+
+    <form id="checkinForm" method="POST" action="">
+        <div class="form-group">
+            <label for="name">ชื่อ-นามสกุล</label>
+            <input type="text" id="name" name="name" placeholder="ระบุชื่อของคุณ" required value="">
+        </div>
+
+        <input type="hidden" id="lat" name="lat">
+        <input type="hidden" id="lon" name="lon">
+
+        <button type="submit" id="submitBtn" disabled>กำลังดึงพิกัด GPS...</button>
+        <span id="status-text">กรุณาอนุญาตการเข้าถึงพิกัดเพื่อทำรายการ</span>
+    </form>
+
+    <div id="resultAlert" class="alert" style="display: none;">
+        <strong id="alertStrong"></strong> 
+        <span id="alertMessage"></span>
+
+        <div id="successInfo" style="display: none;">
+            <div class="info-grid">
+                <div class="info-card">
+                    <span class="info-label">เวลาบันทึก</span>
+                    <span class="info-value" id="infoTime"></span>
+                </div>
+                <div class="info-card">
+                    <span class="info-label">พิกัด</span>
+                    <span class="info-value" id="infoCoords"></span>
+                </div>
+            </div>
+            <a href="#" target="_blank" class="btn-map" id="mapLink">📍 ดูบนแผนที่ Google Maps</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    const nameInput = document.getElementById('name');
+    const latInput = document.getElementById('lat');
+    const lonInput = document.getElementById('lon');
+    const submitBtn = document.getElementById('submitBtn');
+    const statusText = document.getElementById('status-text');
+    const form = document.getElementById('checkinForm');
+    const resultAlert = document.getElementById('resultAlert');
+
+    // ฟังก์ชันสำหรับดึงพิกัด (Browser Geolocation API)
+    function getLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    // Success
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    latInput.value = lat;
+                    lonInput.value = lon;
+                    
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = "บันทึกชื่อและพิกัด";
+                    statusText.innerText = "📍 ระบุตำแหน่งสำเร็จ";
+                    statusText.style.color = "green";
+                },
+                (error) => {
+                    // Error or Denied
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = "บันทึก (โดยไม่ใช้พิกัด)";
+                    statusText.innerText = "⚠️ ไม่สามารถเข้าถึงพิกัดได้: " + error.message;
+                    statusText.style.color = "red";
+                },
+                { enableHighAccuracy: true, timeout: 5000 }
+            );
+        } else {
+            // Browser not supported
+            statusText.innerText = "เบราว์เซอร์ไม่รองรับ GPS";
+            submitBtn.disabled = false;
+            submitBtn.innerText = "บันทึก (โดยไม่ใช้พิกัด)";
+        }
+    }
+
+    // ฟังก์ชันจำลองการส่งข้อมูลและการแสดงผล (เนื่องจากไม่มี PHP)
+    function simulateSubmission(event) {
+        event.preventDefault(); // ป้องกันการส่งฟอร์มจริง
+
+        const nameValue = nameInput.value.trim();
+        const latValue = latInput.value;
+        const lonValue = lonInput.value;
+        let success = false;
+        let message = "";
+        
+        // ตรวจสอบความถูกต้อง (จำลองจาก PHP)
+        if (nameValue.length < 2) {
+            message = "ชื่อสั้นเกินไป";
+        } else if (nameValue.length > 50) {
+            message = "ชื่อยาวเกินไป";
+        } else if (nameValue === "") {
+            message = "กรุณากรอกชื่อ";
+        } else {
+            success = true;
+            message = "บันทึกการเช็คชื่อสำเร็จแล้ว!";
+        }
+
+        // แสดงผลลัพธ์
+        displayResult(success, message, latValue, lonValue);
+    }
+
+    function displayResult(success, message, lat, lon) {
+        const alertStrong = document.getElementById('alertStrong');
+        const alertMessage = document.getElementById('alertMessage');
+        const infoTime = document.getElementById('infoTime');
+        const infoCoords = document.getElementById('infoCoords');
+        const mapLink = document.getElementById('mapLink');
+        const successInfo = document.getElementById('successInfo');
+        
+        // กำหนด Class และข้อความ
+        resultAlert.classList.remove('alert-success', 'alert-danger');
+        resultAlert.classList.add(success ? 'alert-success' : 'alert-danger');
+        alertStrong.innerText = success ? '✅ สำเร็จ' : '❌ ผิดพลาด';
+        alertMessage.innerText = message;
+        
+        // แสดงข้อมูลเพิ่มเติมเมื่อสำเร็จ
+        if (success) {
+            successInfo.style.display = 'block';
+            const now = new Date();
+            // การจัดรูปแบบวันที่และเวลาใน JavaScript อาจแตกต่างจาก PHP เล็กน้อย
+            const timeStr = now.toLocaleDateString('th-TH', { 
+                day: '2-digit', month: '2-digit', year: 'numeric', 
+                hour: '2-digit', minute: '2-digit', second: '2-digit', 
+                hour12: false 
+            }).replace(/\//g, '/').replace(',', '');
+
+            infoTime.innerText = timeStr;
+            const latStr = lat || 'N/A';
+            const lonStr = lon || 'N/A';
+            infoCoords.innerText = `${latStr}, ${lonStr}`;
+            
+            if (lat && lon) {
+                mapLink.style.display = 'block';
+                mapLink.href = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+            } else {
+                mapLink.style.display = 'none';
+            }
+        } else {
+            successInfo.style.display = 'none';
+        }
+
+        // แสดง Alert Box
+        resultAlert.style.display = 'block';
+    }
+
+    // เรียกทำงานทันทีที่โหลดหน้าเว็บ
+    window.onload = getLocation;
+
+    // ผูก Event Listener สำหรับฟอร์ม
+    form.addEventListener('submit', simulateSubmission);
+</script>
+
+</body>
+</html>
